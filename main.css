@@ -1,0 +1,253 @@
+html, body {
+	line-height: 1.6;
+	color: #444;
+	padding: 0;
+	margin: 0;
+	height: 100%;
+	width: 100%;
+	position: relative;
+	font-family: sans-serif !important;
+}
+
+#content p, #content li, #content td, #content th {
+	font-size: 16px;
+}
+
+*, *:before, *:after {
+	box-sizing: border-box;
+}
+
+.title-bar *, .tree-view * {
+	font-family: "MS Sans Serif" !important;
+}
+
+details > summary:first-of-type {
+	list-style-type: none;
+	list-style: none;
+}
+
+#flex-container {
+	width: 100%;
+	height: 100%;
+	display: flex;
+}
+
+.col {
+	display: inline-block;
+	height: 100%;
+}
+
+#tree {
+	width: 33%;
+	background-color: #fff;
+	overflow-y: scroll;
+}
+
+#editor {
+	width: 33%;
+}
+
+#view {
+	width: 34%;
+}
+
+button {
+	margin: 0;
+	padding: 5px;
+	border: 0;
+}
+
+/* ========= */
+
+#main-window {
+	height: 100%;
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+#main-window .title-bar {
+	flex: none;
+	
+}
+
+#tree {
+	width: 20%;
+	min-height: 100%;
+}
+
+#main-window .window-body {
+	height: calc(100% - 40px);
+	display: flex;
+}
+
+#page {
+	width: 80%;
+	margin-left: 8px;
+	height: 100%;
+}
+
+#page #editor, #page #content {
+	width: 100%;
+	height: 100%;
+	font-family: sans-serif !important;
+}
+
+#page #editor textarea {
+	width: 100%;
+	height: 100%;
+	padding: 6px;
+	font-size: 16px;
+	resize: none !important;
+	font-family: sans-serif !important;
+}
+
+#page #editor {
+	display: none;
+}
+
+#page #content {
+	overflow-y: scroll;
+	padding: 6px;
+}
+
+pre {
+	padding: 2px !important;
+	box-shadow: inset -1px -1px #bbb,inset 1px 1px gray,inset -2px -2px #bbb,inset 2px 2px #0a0a0a !important;
+	max-width: 100% !important;
+	display: inline-block !important;
+}
+
+code, code * {
+	font-family: monospace !important;
+	font-size: 12px;
+}
+
+h1 {
+	font-size: 3rem !important;
+	filter: contrast(1) !important;
+}
+
+h5 {
+	font-size: 1rem !important;
+}
+
+h6 {
+	font-size: 0.8rem !important;
+}
+
+blockquote p {
+	padding: 10px;
+	font-size: 14px !important;
+	background: #dfdfdf;
+}
+
+p code {
+	background-color: #ccc;
+	padding: 0 3px;
+	font-size: 15px !important;
+}
+
+li code {
+	background-color: #ccc;
+	padding: 0 3px;
+	font-size: 15px !important;
+}
+
+table, table * {
+	padding: 6px;
+	border: 1px solid grey;
+	border-collapse: collapse;
+	margin: 0 auto;
+}
+
+img {
+	display: block;
+	margin: 0 auto;
+}
+
+blockquote p {
+	box-shadow: inset -1px -1px #fff,inset 1px 1px grey,inset -2px -2px #dfdfdf,inset 2px 2px #0a0a0a !important;
+}
+
+#content > pre {
+	white-space: normal;
+}
+
+.title-bar-controls button {
+	margin-left: 2px;
+}
+
+.tree-view li, .tree-view summary {
+	margin-left: -1px;
+	padding: 0 2px;
+	border: 1px solid rgba(0,0,0,0);
+}
+
+summary, .tree-view li {
+	user-select: none;
+}
+
+summary:focus{
+    outline: none !important;
+}
+
+.tree-view details summary::before {
+	margin-top: 2px;
+}
+
+.title-bar-text {
+	margin: 0 5px !important;
+	width: 100% !important;
+}
+
+.title-bar-text span {
+	float: right !important;
+}
+
+pre code pre {
+	padding: 7px !important;
+	padding-right: 10px !important;
+	display: block !important;
+}
+
+pre code pre code {
+	padding-right: 8px;
+}
+
+.tree-view li details ul li details ul {
+	margin-left: 3px !important;
+}
+
+.tree-view > li > details > summary::before {
+	display: none !important;
+}
+
+.tree-view > li > details > summary {
+	padding: 0 !important;
+}
+
+#content h1, #content h2, #content h3, #content h4, #content h5, #content h6{
+	font-family: "MS Sans Serif" !important;
+}
+
+#content h2:first-child {
+	margin-top: 0;
+}
+
+#content h1:first-child {
+	margin-top: 0;
+}
+
+.tree-view details {
+	margin-left: -2px !important;
+}
+
+details summary::-webkit-details-marker {
+	display: none !important;
+}
+
+#content img {
+	max-width: 80% !important;
+	border: 1px solid black;
+}

@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Archy</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+		<meta name="theme-color" content="#444" />
+		<link rel="stylesheet" href="main.css"/>
+		<link rel="stylesheet" href="https://unpkg.com/98.css"/>
+		<link rel="stylesheet" href="https://unpkg.com/@highlightjs/cdn-assets@11.4.0/styles/agate.min.css"/>
+	</head>
+	<body>
+		<div class="window" id="main-window">
+			<div class="title-bar">
+			  <div class="title-bar-text" id="title"><del>Hier</del>archy</div>
+			  <div class="title-bar-controls">
+				<button aria-label="Minimize" onclick="swapPanel()"></button>
+				<button aria-label="Maximize" onclick="findQQQs()"></button>
+				<button aria-label="Close"></button>
+			  </div>
+			</div>
+			<div class="window-body">
+				<ul class="tree-view" id="tree">
+					<li>
+						<details open="">
+							<summary onclick="return changePage(this)" ondblclick="return toggleGroup(this)" oncontextmenu="return newPage(this)" data-meta="0|0|0" title="ID 0">Archy</summary>
+							<ul id="tree-inny">
+							</ul>
+						</details>
+					</li>
+				</ul>
+				<div id="page">
+					<div id="editor">
+						<textarea id="editorr">
+							Loading...
+						</textarea>
+					</div>
+					<div id="content">
+						Loading...
+					</div>
+				</div>
+			</div>
+		  </div>
+		<script src="https://unpkg.com/@highlightjs/cdn-assets/highlight.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+		<script src="https://www.gstatic.com/firebasejs/9.6.2/firebase-app-compat.js"></script>
+		<script src="https://www.gstatic.com/firebasejs/9.6.2/firebase-auth-compat.js"></script>
+		<script src="https://www.gstatic.com/firebasejs/9.6.2/firebase-storage-compat.js"></script>
+		<script src="https://www.gstatic.com/firebasejs/9.6.2/firebase-firestore-compat.js"></script>
+		<script>
+			firebase.initializeApp({
+				apiKey: "???",
+				authDomain: "???",
+				projectId: "???",
+				storageBucket: '???'
+			});
+			var fdb = firebase.firestore();
+			var bucket = firebase.storage();
+
+			// Global vars, sue me
+			let db = {
+				"meta": null,
+				"tree": null,
+				"documents": null,
+				"pics": null
+			};
+			let curPage = null
+			let curDoco = null
+			let targyLI = null
+			let foundTree = null
+			let oldTreeID = null
+			let oldTreeParent = null
+			let editor = document.getElementById("editor")
+			let editorr = document.getElementById("editorr")
+			let editorOrig = null
+			let editorStart = null
+			let editorEnd = null
+			let content = document.getElementById("content")
+			let tree = document.getElementById("tree")
+			let treeInny = document.getElementById("tree-inny")
+			let title = document.getElementById("title")
+
+			// Clears the # if there's already one
+			window.location.hash = ""
+
+			// If we've clicking on a #ID link, switch to that page
+			document.body.onhashchange = function() {
+				let ID = window.location.hash.slice(1) - 0
+				let e = document.querySelector(`[data-meta^="${ID}"]`)
+				changePage(e)
+			}
+
+			// Prevent losing changes on close tab if editor open
+			window.onbeforeunload = function (e) {
+				if (editor.style.display === "block") {
+					e.preventDefault();
+					e.returnValue = '';
+					return;
+				}
+				delete e['returnValue'];
+			}
+
+			// Editor extensions
+			editorr.onkeydown = function(event) {
+				let selStart = editorr.selectionStart
+				let selEnd = editorr.selectionEnd
+
+				// Get the section before, between and after selection range
+				let seld = editorr.value.slice(selStart, selEnd)
+				let pre = editorr.value.slice(0, selStart)
+				let post = editorr.value.slice(selEnd)
+
+				// If we've got an area selected
+				if (selEnd - selStart > 1) {
+					// Trim blank newlines
+					let nl = pre.split("\n").slice(pre.split("\n").length - 1)[0]
+					seld = nl + seld
+					pre = pre.slice(0, selStart - nl.length)
+
+					// Indent selection with tab
+					if (!event.shiftKey && event.keyCode == 9) { // TAB
+						var new_txt = seld.replaceAll("\n", "\n	")
+						editorr.value = pre + "	" + new_txt + post
+						return false
+					}
+
+					// Convert selection to numbered list
+					if (event.shiftKey && event.ctrlKey && event.keyCode == 55) { // CTRL ALT 7
+						var new_txt = seld.replaceAll("\n", "\n1. ")
+						editorr.value = pre + "1. " + new_txt + post
+						editorr.selectionStart = selEnd; editorr.selectionEnd = selEnd
+						return false
+					}
+
+					// Convert selection to unordered list
+					if (event.shiftKey && event.ctrlKey && event.keyCode == 56) { // CTRL ALT 8
+						var new_txt = seld.replaceAll("\n", "\n- ")
+						editorr.value = pre + "- " + new_txt + post
+						editorr.selectionStart = selEnd; editorr.selectionEnd = selEnd
+						return false
+					}
+				} else {
+					// Override default behavior to "tab out" of textarea with adding literal tab char
+					if (!event.shiftKey && event.keyCode == 9) {
+						editorr.value = pre + "	" + post
+						editorr.selectionStart = editorr.selectionEnd = selEnd + 1
+						return false
+					}
+				}
+
+				// Auto-insert matching keys
+				if (event.keyCode == 56 || event.keyCode == 192 || event.keyCode == 219 || event.keyCode == 57 || event.keyCode == 222 || event.keyCode == 57) {
+					let keyCode = event.keyCode
+					// Some events we want to ignore e.g non-shifted "*" (i.e "8")
+					if (keyCode == 219) keyCode = event.shiftKey ? 997 : 219
+					if (keyCode == 222) keyCode = event.shiftKey ? 998 : null
+					if (keyCode == 192) keyCode = event.shiftKey ? 999 : 192
+					if (keyCode == 57) keyCode = event.shiftKey ? 57 : null
+					if (keyCode == 56) keyCode = event.shiftKey ? 56 : null
+					if (keyCode) {
+						var map = {56: ["*", "*"], 192: ["`", "`"], 999: ["~", "~"], 219: ["[", "]"], 997: ["{", "}"], 57: ["(", ")"], 998: ['"', '"']}
+						var new_txt = editorr.value.split("");
+						new_txt.splice(selEnd, 0, map[keyCode][1]);
+						new_txt.splice(selStart, 0, map[keyCode][0]);
+						editorr.value = new_txt.join("");
+						editorr.selectionStart = selStart + 1;
+						editorr.selectionEnd = selEnd + 1;
+						return false
+					}
+				}
+			}
+
+			// Global keydown
+			document.addEventListener('keydown', (e) => {
+				// Rename a page with F2 if page selected
+				if (e.code === "F2" && curPage) {
+					let newName = prompt("Change page name:", curPage.innerText)
+					if (newName) {
+						curPage.innerText = newName
+						let [target, _] = getElemAndParent(curPage.dataset.meta.split("|")[0] - 0, db.tree)
+						target.name = newName
+						commitTree()
+					}
+				}
+
+				// If a page is selected and we're not in the editor, DEL deletes page
+				if (e.keyCode == 46 && curPage && document.activeElement.tagName != "TEXTAREA") { // DEL
+					let ID = curPage.dataset.meta.split("|")[0] - 0
+					let [oldObj, oldPar] = getElemAndParent(ID, db.tree)
+					oldPar.kiddos = oldPar.kiddos.filter(o => o !== oldObj)
+
+					// We need to navigate up out of details to the <li>
+					if (curPage.parentNode.tagName === "DETAILS") {
+						curPage = curPage.parentNode.parentNode
+					}
+
+					// If this is the last child page, make parent a leaf node
+					if (curPage.parentNode.childElementCount === 1) {
+						curPage.innerText = ""
+						curPage.parentNode.parentNode.parentNode.insertAdjacentHTML("afterend", `<li oncontextmenu="return newPage(this)" onclick="changePage(this)">${curPage.parentNode.parentNode.parentNode.innerText}</li>`)
+						curPage.parentNode.parentNode.parentNode.remove()
+					} else { // Otherwise pop the leaf
+						curPage.remove()
+					}
+					commitTree()
+				}
+
+				// Convert between editor and content with SHIFT + TAB
+				if (e.shiftKey && e.keyCode == 9) {
+					swapPanel()
+					return false
+				}
+
+				// Move page up with minus if editor not focused
+				if (e.keyCode === 173 && curPage && document.activeElement.tagName != "TEXTAREA") { // -
+					let swap1e, swap2e = [null, null]
+					let swap1, swap2 = [null, null]
+
+					swap1 = curPage.dataset.meta.split("|")[0] - 0
+					if (curPage.tagName === "LI") swap1e = curPage
+					else swap1e = curPage.parentNode.parentNode
+
+					swap2e = swap1e.previousSibling
+					if (swap2e !== null) {
+						if (swap2e.childElementCount) swap2 = swap2e.querySelector("details summary").dataset.meta.split("|")[0] - 0
+						else swap2 = swap2e.dataset.meta.split("|")[0] - 0
+
+						swapKids(swap1, swap2)
+						swap1e.parentNode.insertBefore(swap1e, swap2e)
+					}
+				}
+
+				// Move pages down with +
+				if (e.keyCode === 61 && curPage && document.activeElement.tagName != "TEXTAREA") { // +
+					let swap1e, swap2e = [null, null] // Note <li>
+					let swap1, swap2 = [null, null] // Note IDs
+
+					swap1 = curPage.dataset.meta.split("|")[0] - 0
+					if (curPage.tagName === "LI") swap1e = curPage
+					else swap1e = curPage.parentNode.parentNode
+
+					swap2e = swap1e.nextSibling
+					if (swap2e !== null) {
+						if (swap2e.childElementCount) swap2 = swap2e.querySelector("details summary").dataset.meta.split("|")[0] - 0
+						else swap2 = swap2e.dataset.meta.split("|")[0] - 0
+
+						swapKids(swap1, swap2)
+						swap1e.parentNode.insertBefore(swap2e, swap1e)
+					}
+				}
+
+				// ` picks up and puts down pages
+				if (e.keyCode === 192 && curPage && document.activeElement.tagName != "TEXTAREA") { // `
+					// If we've already got something picked up
+					if (targyLI) {
+						let UL = null
+						// Tell us we only support dropping on tree nodes if on leaf
+						if (curPage.tagName === "LI") alert("Must drop on group, sorry!")
+						else {
+							UL = curPage.parentNode.querySelector("ul")
+							UL.append(targyLI)
+							targyLI = null
+							let newTreeID = curPage.dataset.meta.split("|")[0] - 0
+							let [oldObj, oldPar] = getElemAndParent(oldTreeID, db.tree)
+							let [newObj, _] = getElemAndParent(newTreeID, db.tree)
+							newObj.kiddos.push(oldObj)
+							oldPar.kiddos = oldPar.kiddos.filter(o => o !== oldObj)
+						}
+					} else { // Otherwise mark it for pickup
+						targyLI = curPage
+						oldTreeID = curPage.dataset.meta.split("|")[0] - 0
+						if (curPage.tagName === "SUMMARY") targyLI = curPage.parentNode.parentNode
+					}
+					commitTree()
+				}
+			})
+
+			// If we paste onto the editor
+			editorr.onpaste = function (event) {
+				var items = (event.clipboardData || event.originalEvent.clipboardData).items
+				var blob = null
+				for (var i = 0; i < items.length; i++) {
+					if (items[i].type.indexOf("image") === 0) blob = items[i].getAsFile()
+				}
+				// If the MIME type is an image
+				if (blob !== null) {
+					var reader = new FileReader();
+					// When we read the image data_url
+					reader.onload = function(event) {
+						db.meta.newestIm += 1
+						// Send to the bucket
+						bucket.ref().child('images/IM' + db.meta.newestIm).putString(event.target.result, 'data_url').then(function(snapshot) {
+							// Add stub in editor
+							let start = editorr.selectionStart
+							let val = editorr.value
+							let mush = val.slice(0, start) + "![](IM" + db.meta.newestIm + ")"
+							editorr.value = mush + val.slice(start)
+							editorr.selectionStart = editorr.selectionEnd = mush.length
+						}).catch(e => alert("COMMIT IMG FAILED"));
+						commitMeta()
+					};
+					reader.readAsDataURL(blob);
+				}
+			}
+
+			// Highlights all ??? occurrences
+			const findQQQs = () => {
+				questions = []
+				Object.keys(db.documents).map(k => {
+					if (decodeB64(db.documents[k]).includes("???")) {
+						questions.push(k + ":\t" + getElemAndParent(k, db.tree)[0].name)
+					}
+				})
+				alert(questions.join("\n"))
+			}
+
+			// Helper function for move page up and down
+			const swapKids = (swap1, swap2) => {
+				let par = getElemAndParent(swap1, db.tree)[1]
+				swap1 = par.kiddos.findIndex(e => e.id == swap1)
+				swap2 = par.kiddos.findIndex(e => e.id == swap2)
+				par.kiddos = [...par.kiddos.map(e => JSON.stringify(e))]
+				let swap3 = par.kiddos[swap1]
+				par.kiddos[swap1] = par.kiddos[swap2]
+				par.kiddos[swap2] = swap3
+				par.kiddos = [...par.kiddos.map(e => JSON.parse(e))]
+				commitTree()
+			}
+
+			// Converts data-meta note ID (i.e DOM) to db JSON obj
+			function getElemAndParent (id, currentNode, prev=null) {
+				var i, currentChild, result
+				if (id == currentNode.id) return [currentNode, prev]
+				else {
+					for (i = 0; i < currentNode.kiddos.length; i += 1) {
+						currentChild = currentNode.kiddos[i]
+						result = getElemAndParent(id, currentChild, currentNode)
+						if (result !== false) return result
+					}
+					return false;
+				}
+			}
+
+			// Changes to editor and viewer respectively
+			const swapPanel = () => {
+				if (content.style.display === "block") {
+					viewEditor()
+				}
+				else {
+					viewPanel(editorOrig !== editorr.value)
+					render()
+				}
+			}
+
+			// Converts markdown to HTML, replacing image stubs with DB data
+			const render = () => {
+				content.innerHTML = marked.parse(editorr.value)
+				let ims = [...editorr.value.matchAll(/\!\[\]\((IM[0-9]*)\)/g)]
+				ims.forEach((im) => {
+					bucket.ref().child('images/' + im[1]).getDownloadURL().then(function(url) {
+						content.querySelector("img[src='" + im[1] + "']").src = url
+					})
+				})
+			}
+
+			const viewPanel = (edited=false) => {
+				if (edited) {
+					// Hack to add newlines between two butting code boxes
+					editorr.value = editorr.value.replaceAll("```\n```", "```\n\n<br/>\n\n```")
+					let tmp = getElemAndParent(curPage.dataset.meta.split("|")[0], db.tree)[0]
+					let day = new Date().toISOString().split('T')[0]
+					tmp.modified = day
+					curPage.dataset.meta = curPage.dataset.meta.split("|")[0] + "|" + curPage.dataset.meta.split("|")[1] + "|" + day
+					commitTree()
+					title.innerHTML = `${curPage.innerText}<span>ID: ${curPage.dataset.meta.split("|")[0]}; C: ${curPage.dataset.meta.split("|")[1]}; M: ${curPage.dataset.meta.split("|")[2]}</span>`
+				}
+				commitDoc()
+				editorStart = editorr.selectionStart
+				editorEnd = editorr.selectionEnd
+				content.style.display = "block"
+				editor.style.display = "none"
+			}
+
+			const viewEditor = () => {
+				content.style.display = "none"
+				editor.style.display = "block"
+				editorr.selectionStart = editorStart
+				editorr.selectionEnd = editorEnd
+				editorOrig = editorr.value
+				setTimeout(() => {editorr.focus()}, 50)
+			}
+
+			// Convert doc to B64 to remove special chars for easier storage
+			const encodeB64 = (doc) => {
+				return btoa(encodeURIComponent(doc).replace(/%([0-9A-F]{2})/g,
+				function toSolidBytes(match, p1) {return String.fromCharCode('0x' + p1)}))
+			}
+
+			// Convert back from database B64 data
+			const decodeB64 = (doc) => {
+				return decodeURIComponent(atob(doc).split('').map(function (c) {
+					return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+				}).join(''));
+			}
+
+			// Called on double click of tree node
+			const toggleGroup = (e) => {
+				e.parentNode.open = e.parentNode.open ? false : true
+				let ID = e.dataset.meta.split("|")[0] - 0
+				let [obj, _] = getElemAndParent(ID, db.tree)
+				obj.folded = e.parentNode.open ? false : true
+				commitTree()
+			}
+
+			// Called when right clicking on a note
+			const newPage = (e) => {
+				// Prevent JS event "bubbling"
+				window.event.stopPropagation()
+				changeBorder(e)
+				var pageName = prompt("New page name?")
+				let objID = e.dataset.meta.split("|")[0] - 0
+				// If we didn't cancel or leave page name empty
+				if (pageName) {
+					let ID = db.meta.newestID + 1
+					let ISO = new Date().toISOString().split('T')[0]
+					// Add dummy content to editor
+					db.documents[ID] = encodeB64("## " + pageName)
+					if (e.tagName === "SUMMARY") {
+						e.parentNode.querySelector("ul:last-child").innerHTML += `<li oncontextmenu="return newPage(this)" onclick="changePage(this)" data-meta="${ID + "|" + ISO + "|" + ISO}" title="ID ${ID}">${pageName}</li>`
+						changePage(e.parentNode.querySelector("ul").lastChild)
+					}
+					// If we need to convert a leaf to a tree node, remove leaf events
+					else {
+						e.oncontextmenu = null
+						e.onclick = null
+						e.style.border = null
+						e.innerHTML = `<details open=""><summary onclick="return changePage(this)" ondblclick="return toggleGroup(this)"  oncontextmenu="return newPage(this)" data-meta="${e.dataset.meta}" title="ID ${e.dataset.meta.split('|')[0]}">${e.innerText}</summary><ul><li oncontextmenu="return newPage(this)" onclick="changePage(this)" data-meta="${ID + "|" + ISO + "|" + ISO}" title="ID ${ID}">${pageName}</li></ul></details>`
+						changePage(e.querySelector("details ul li:last-child"))
+					}
+					let [obj, _] = getElemAndParent(objID, db.tree)
+					// Blank schema for new pages
+					obj.kiddos.push({
+						name: pageName,
+						created: ISO,
+						modified: ISO,
+						id: ID,
+						folded: false,
+						kiddos: []
+					})
+					// Push changes to DB
+					db.meta.newestID = ID
+					commitMeta()
+					commitTree()
+					viewEditor()
+					// Go to the editor and have the cursor ready for typing
+					editorr.focus()
+					editorr.selectionStart = editorr.selectionEnd = editorr.value.length
+				}
+				return false;
+			}
+
+			// Adds or removes the dashed border around pages
+			const changeBorder = (e) => {
+				if (curPage && curPage.querySelector("details ul")) curPage.querySelector("details summary").style.border = "1px solid rgba(0,0,0,0)"
+				else if (curPage) curPage.style.border = "1px solid rgba(0,0,0,0)"
+
+				curPage = e
+				if (e.querySelector("details ul")) e.querySelector("details summary").style.border = "1px dotted black"
+				else e.style.border = "1px dotted black"
+			}
+
+			// If we've clicked on a page
+			const changePage = (e) => {
+				// That isn't already the focus
+				if (e === curPage) {return false}
+
+				db.meta.open = e.dataset.meta.split("|")[0] - 0
+
+				title.innerHTML = `${e.innerText}<span>ID: ${e.dataset.meta.split("|")[0]}; C: ${e.dataset.meta.split("|")[1]}; M: ${e.dataset.meta.split("|")[2]}</span>`
+
+				changeBorder(e)
+				viewPanel(false)
+				commitDoc()
+
+				curDoco = e.dataset.meta.split("|")[0]
+				editorr.value = decodeB64(db.documents[curDoco])
+
+				render()
+				commitMeta()
+
+				// Prevents collapsing of tree nodes
+				return false
+			}
+
+			const commitDoc = () => {
+				if (curDoco) {
+					let enc = encodeB64(editorr.value)
+					db.documents[curDoco] = enc
+					promiseTimeout(2000, fdb.collection("archy").doc("documents").update({[curDoco]: enc})).catch(e => alert("COULDN'T COMMIT DOC"))
+				}
+			}
+
+			// Tell the MD > HTML converter to use explicit or guessed code language
+			marked.setOptions({highlight: function(code, language) {
+				const validLanguage = hljs.getLanguage(language) ? language : hljs.highlightAuto(code).language;
+				let result = hljs.highlight(code, {language: validLanguage || "text"})
+  				return `<pre class="hljs ${result.language}"><code>${result.value}</code></pre>`
+			}})
+
+			// Converts DB JSON tree to DOM tree recursively
+			const constructNodes = (root, node) => {
+				if (node.kiddos && node.kiddos.length) {
+					let open = node.folded === false ? ' open=""' : ""
+					root.innerHTML += `<li><details${open}><summary onclick="return changePage(this)" ondblclick="return toggleGroup(this)"  oncontextmenu="return newPage(this)" data-meta="${node.id + "|" + node.created + "|" + node.modified}" title="ID ${node.id}">${node.name}</summary><ul></ul></details></li>`
+					node.kiddos.map(kid => {
+						constructNodes(root.lastChild.querySelector("details ul:last-child"), kid)
+					})
+				} else {
+					root.innerHTML += `<li oncontextmenu="return newPage(this)" onclick="changePage(this)" data-meta="${node.id + "|" + node.created + "|" + node.modified}" title="ID ${node.id}">${node.name}</li>`
+				}
+			}
+
+			// If we've authed, download metadata and tree and documents on defer
+			const setup = () => {
+				fdb.collection("archy").doc("tree").get().then((dat) => {
+					db.tree = dat.data()
+					db.tree.kiddos.sort((a, b) => (a.id - 0) - (b.id - 0))
+					db.tree.kiddos.map(top => constructNodes(treeInny, top))
+
+					fdb.collection("archy").doc("meta").get().then((dat) => {
+						db.meta = dat.data()
+						changePage(document.querySelector(`[data-meta^="${db.meta.open}"]`))
+					})
+				})
+
+				fdb.collection("archy").doc("documents").get().then(dat => {
+					db.documents = dat.data()
+				})
+			}
+
+			const promiseTimeout = function(ms, promise){
+				// Create a promise that rejects in <ms> milliseconds
+				let timeout = new Promise((resolve, reject) => {
+				let id = setTimeout(() => {
+					clearTimeout(id);
+					reject('Timed out in '+ ms + 'ms.')
+				}, ms)
+				})
+
+				// Returns a race between our timeout and the passed in promise
+				return Promise.race([
+					promise,
+					timeout
+				])
+			}
+
+			// Push tree changes to DB
+			const commitTree = () => {
+				promiseTimeout(2000, fdb.collection("archy").doc("tree").set(db.tree)).catch(e => alert("COULDN'T COMMIT TREE"))
+			}
+
+			// Push metadata changes to DB
+			const commitMeta = () => {
+				promiseTimeout(2000, fdb.collection("archy").doc("meta").set(db.meta)).catch(e => alert("COULDN'T COMMIT META"))
+			}
+
+			// Either we've got a session token in memory or unauthed
+			firebase.auth().onAuthStateChanged(function(user) {
+				// If we are authed, don't prompt
+				if (user) setup()
+				else {
+					// Ask for creds, if wrong, legal warning, else, state changes and setup
+					firebase.auth().signInWithEmailAndPassword(prompt("EMAIL"), prompt("PASSWORD")).catch(function(error) {
+						alert("You are reminded that illegally attempting to access information you are not permitted to access is a crime in many countries and certainly in Australia. Do NOT continue attempting to log into this system.")
+						open("https://harrisonm.com", '_self').close()
+					})
+				}
+			});
+
+		</script>
+	</body>
+</html>
