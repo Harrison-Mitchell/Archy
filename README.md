@@ -34,7 +34,7 @@ Create a Firebase app with auth, Firestore and a bucket, plop the API keys in `f
 	- Convert selection to numbered list `CTRL + SHIFT + 7`
 	- Convert selection to unordered list `CTRL + SHIFT + 8`
 	- Switch to / from editor with `SHIFT + TAB`
-	- Auto inserting closing tags: `~~` <code>``</code> `**` `()` `{}` `[]` `""`
+	- Auto inserting closing tags: <code>~~</code> <code>``</code> <code>**</code> <code>()</code> <code>{}</code> <code>[]</code> <code>""</code>
 	- Paste images inline
 	- Link to other pages `[page](#7)`
 	- Code syntax highlighting
@@ -69,8 +69,8 @@ Tree nodes have three actions. `onclick` instructs Archy to change page, save th
 
 #### Rendered View
 
-TODO
+![image](https://user-images.githubusercontent.com/17722100/148754926-7748ac46-387c-46d8-b7b8-09bbf918f86e.png)
 
 #### Editor View
 
-TODO
+![image](https://user-images.githubusercontent.com/17722100/148754974-26431cbd-8081-4061-91de-e4f5e8bede00.png)
